@@ -7,12 +7,12 @@ use std::fs::{File, DirEntry};
 use std::io::{self, BufRead};
 use std::path::{Path, PathBuf};
 use regex;
+use rocket::request::Form;
 
 
-
-#[derive(Debug,Clone)]
+#[derive(Debug,Clone, PartialEq, Responder, FromForm)]
 pub enum System{Windows(String), Unix(String)}
-#[derive(Debug,Clone)]
+#[derive(Debug,Clone, PartialEq, Responder, FromForm)]
 pub struct Project{
     pub script: String,
     pub system: System,
@@ -110,21 +110,27 @@ use powershell_script;
 use std::process::Command;
 
 fn run_sh(){
-    match std::pro cess::Command::new("cmd").args(&["/C", ".\\build_dir\\build.bat"]).output(){
-        Ok(output) => println!("{:?}", std::str::from_utf8(output.stdout.as_slice()).unwrap()),
-        Err(e) => println!("Evaluation problem")
+    if cfg!(unix) {
+        match std::process::Command::new("sh").args(&["./build_dir/build.sh"]).output() {
+            Ok(output) => println!("{:?}", std::str::from_utf8(output.stdout.as_slice()).unwrap()),
+            Err(e) => println!("Evaluation problem")
+        }
     }
 }
 fn run_cmd(){
-    match std::process::Command::new("cmd").args(&["/C", ".\\build_dir\\build.bat"]).output(){
-        Ok(output) => println!("{:?}", std::str::from_utf8(output.stdout.as_slice()).unwrap()),
-        Err(e) => println!("Evaluation problem")
+    if cfg!(windows) {
+        match std::process::Command::new("cmd").args(&["/C", ".\\build_dir\\build.bat"]).output() {
+            Ok(output) => println!("{:?}", std::str::from_utf8(output.stdout.as_slice()).unwrap()),
+            Err(e) => println!("Evaluation problem")
+        }
     }
 }
 fn run_ps1(){
-    match powershell_script::run("./build_dir/build.ps1", false){
-        Ok(output) => println!("{:?}",output.stdout().unwrap()),
-        Err(e) => println!("Evaluation problem")
+    if cfg!(windows) {
+        match powershell_script::run("./build_dir/build.ps1", false) {
+            Ok(output) => println!("{:?}", output.stdout().unwrap()),
+            Err(e) => println!("Evaluation problem")
+        }
     }
 }
 fn initialize_projects() -> Vec<Project> {
@@ -135,23 +141,29 @@ fn initialize_projects() -> Vec<Project> {
     }
     Project::from_paths(&path_paths.as_slice())
 }
+// use rocket_contrib::json::Json;
 
-#[get("/")]
-fn index() -> String {
+
+#[get("/", format="application/json")]
+fn index() -> Vec<Project> {
     // let a = tools::files::file_lines("build-paths");
     // let s = a.join(",");
     // s
-    "".to_string()
+
+    initialize_projects()
 }
 
 fn main() {
-    // rocket::ignite().mount("/", routes![index]).launch();
+    rocket::ignite().mount("/", routes![index]).launch();
 
-    // let builddir = vec![Path::new("."),Path::new("src")];
-    //Project::from_paths(builddir.as_slice());
+    // let builddir = vec![Path::new("."),Path::new("src"),Path::new("build_dir")];
+    // Project::from_paths(builddir.as_slice());
     // let PROJECT_LIST = initialize_projects();
-    run_ps1();
-    run_cmd();
+
+
+    // run_ps1();
+    // run_cmd();
+    // run_sh();
 
 
     // println!("Paths:\n{:?}", &PROJECT_LIST);

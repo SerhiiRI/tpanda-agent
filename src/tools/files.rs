@@ -27,17 +27,19 @@ fn file_lines(path_to_file:&Path) -> Vec<String>{
     }
     buffer
 }
-
+// use std::cmp::PartialEq;
 pub fn get_paths(path_to_file:&Path) -> Vec<String>{
     let is_not_0  =  |s:&String| s.len() > 0;
     let is_comment = |s:&String| ! ('#' == s.chars().nth(0).unwrap());
     let is_path =    |s:&String| Path::new(s).exists();
-    file_lines(Path::new(path_to_file).as_ref()).iter()
+    let mut v:Vec<String> = file_lines(Path::new(path_to_file).as_ref()).iter()
         .map(|s|s.trim().to_string())
         .filter( is_not_0)
         .filter(is_comment)
         .filter(is_path)
-        .collect()
+        .collect();
+    v.dedup_by(|a, b| a.as_str().eq(b.as_str()));
+    v
 }
 
 pub fn write_static_file<U: AsRef<path::Path>>(FILE: &'static [u8], destination_path: U) -> std::io::Result<()> {
