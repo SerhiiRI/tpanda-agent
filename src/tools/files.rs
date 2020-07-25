@@ -5,16 +5,17 @@ use std::io;
 // use std::io::{BufWriter, Write, Read, ErrorKind, Result, Lines, BufReader};
 use std::path::Path;
 use std::io::{Write, BufRead};
+use std::str::Lines;
 
 const PROGRAM:&str = "Jarman";
 
-fn read_lines<P>(filename: P) -> io::Result<io::Lines<io::BufReader<fs::File>>>
+pub(crate) fn read_lines<P>(filename: P) -> io::Result<io::Lines<io::BufReader<fs::File>>>
     where P: AsRef<Path>, {
     let file = fs::File::open(filename)?;
     Ok(io::BufReader::new(file).lines())
 }
 
-fn file_lines(path_to_file:&Path) -> Vec<String>{
+pub(crate) fn file_lines(path_to_file:&Path) -> Vec<String>{
     let mut buffer = Vec::new();
     if let Ok(lines) = read_lines(path_to_file) {
         // Consumes the iterator, returns an (Optional) String
@@ -49,6 +50,19 @@ pub fn write_static_file<U: AsRef<path::Path>>(FILE: &'static [u8], destination_
         let bytes_written = buffer.write(&FILE[pos..])?;
         pos += bytes_written;
     }
+    Ok(())
+}
+
+pub fn write_lines_to_file<U: AsRef<Vec<String>>, P: AsRef<path::Path>>(lines: U, destination_path: P) -> std::io::Result<()>{
+
+    let file = fs::File::create(destination_path)?;
+    let mut file = std::io::LineWriter::new(file);
+
+    for l in lines.as_ref() {
+        file.write_all(l.as_bytes())?;
+        file.write(b"\n")?;
+    }
+    file.flush()?;
     Ok(())
 }
 

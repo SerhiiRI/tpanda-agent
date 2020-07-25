@@ -1,170 +1,97 @@
 #![feature(proc_macro_hygiene, decl_macro)]
 #[macro_use] extern crate rocket;
 
-
 mod tools;
-use std::fs::{File, DirEntry};
-use std::io::{self, BufRead};
-use std::path::{Path, PathBuf};
-use regex;
-use rocket::request::Form;
+// project imports
+use tools::project::Project;
+
+// module imports
+use rocket_contrib::json::Json;
+use serde::{Serialize};
+
+// For cors policy
+use rocket::http::Status;
+use rocket::fairing::{Fairing, Info, Kind};
+use rocket::{Request, Response};
+use rocket::http::{Header, ContentType, Method};
+
+const PROJECT_BUILDFILE_PATH:&str = "build-paths";
 
 
-#[derive(Debug,Clone, PartialEq, Responder, FromForm)]
-pub enum System{Windows(String), Unix(String)}
-#[derive(Debug,Clone, PartialEq, Responder, FromForm)]
-pub struct Project{
-    pub script: String,
-    pub system: System,
-}
-impl Project{
-
-    fn re_build_script_pattern() -> Result<regex::Regex, regex::Error> {
-        let a = vec!["fish","bash","sh","ps1","bat"];
-        regex::Regex::new(format!(r"(?i)(build)(?-i).({})", a.join("|")).as_str())}
-
-    pub fn is_build_script( file: &Path)-> Option<Project>{
-        let resolve_project = {
-            if cfg!(windows) {
-                |shell: &str, script_path: &str| -> Option<Project> {
-                    return match shell {
-                        "ps1" => Some(Project { script: script_path.to_string(), system: System::Windows("cmd".to_string()) }),
-                        "bat" => Some(Project { script: script_path.to_string(), system: System::Windows("cmd".to_string()) }),
-                        _ => None
-                    };
-                    None
-                }
-            } else if cfg!(unix) {
-                |shell: &str, script_path: &str| -> Option<Project> {
-                    return match shell {
-                        "sh" => Some(Project { script: script_path.to_string(), system: System::Unix("sh".to_string()) }),
-                        "bash" => Some(Project { script: script_path.to_string(), system: System::Unix("bash".to_string()) }),
-                        "fish" => Some(Project { script: script_path.to_string(), system: System::Unix("fish".to_string()) }),
-                        _ => None
-                    };
-                    None
-                }
-            } else { |shell:&str, script_path:&str| -> Option<Project> {None} }
-
-        };
-
-        let s = Project::re_build_script_pattern().unwrap();
-        if file.is_file() {
-            let f = file.file_name().unwrap();
-            for cap in s.captures_iter(f.to_str().unwrap()) {
-                if let (Some(build), Some(shell)) = (cap.get(1),cap.get(2)){
-                    let script_path = file.to_str().unwrap();
-                    return resolve_project(shell.as_str(), script_path);
-                }
-            }
-        }
-        None
-    }
-
-    pub fn from_paths(project_folder:&[&Path]) -> Vec<Project>{
-        let mut projects = Vec::new();
-        for x in project_folder {
-            if x.is_dir(){
-                if let Ok(files) = std::fs::read_dir(x) {
-                    for f in files{
-                        if let Result::Ok(d) = f{
-                            // println!("{:?} -> {:?}", x, &d.path());
-                            if let Some(project) = Project::is_build_script(&d.path()){
-                                projects.push(project);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        projects
-        // Vec::new()
-        // projects
-    }
-    // pub fn new(build_script:&Path)->Option<Project>{
-    //     let _001tmp = build_script.to_str();
-    //     let _001tmp = _001tmp.unwrap();
-    //     let _001tmp = _001tmp.to_string();
-    //     match build_script.extension(){
-    //         Some(s) => {
-    //             // if cfg!(windows) {
-    //             //     return match s.to_str().unwrap() {
-    //             //         "ps1"|"bat" => Some(Project{script: _001tmp, system: System::Windows}),
-    //             //         _ => None
-    //             //     };
-    //             // } else if cfg!(unix) {
-    //             //     match s.to_str().unwrap() {
-    //             //         "sh" | "bash" | "fish" => Some(Project{script: _001tmp, system: System::Windows}),
-    //             //         _ => return None
-    //             //     };
-    //             // };
-    //
-    //         }
-    //         None => {return None}
-    //     }
-    //     None
-    // }
+#[derive(Serialize)]
+pub struct TaskOutput{
+    pub output: Vec<String>,
+    pub project: Project
 }
 
-use powershell_script;
-use std::process::Command;
-
-fn run_sh(){
-    if cfg!(unix) {
-        match std::process::Command::new("sh").args(&["./build_dir/build.sh"]).output() {
-            Ok(output) => println!("{:?}", std::str::from_utf8(output.stdout.as_slice()).unwrap()),
-            Err(e) => println!("Evaluation problem")
-        }
-    }
+#[get("/")]
+fn get_project_all() -> Json<Vec<Project>> {
+    Json(Project::list(PROJECT_BUILDFILE_PATH))
 }
-fn run_cmd(){
-    if cfg!(windows) {
-        match std::process::Command::new("cmd").args(&["/C", ".\\build_dir\\build.bat"]).output() {
-            Ok(output) => println!("{:?}", std::str::from_utf8(output.stdout.as_slice()).unwrap()),
-            Err(e) => println!("Evaluation problem")
-        }
-    }
-}
-fn run_ps1(){
-    if cfg!(windows) {
-        match powershell_script::run("./build_dir/build.ps1", false) {
-            Ok(output) => println!("{:?}", output.stdout().unwrap()),
-            Err(e) => println!("Evaluation problem")
-        }
-    }
-}
-fn initialize_projects() -> Vec<Project> {
-    let mut path_paths = vec![];
-    let path_strings = tools::files::get_paths(Path::new("build-paths").as_ref());
-    for s in &path_strings {
-        path_paths.push(Path::new(s.as_str()))
-    }
-    Project::from_paths(&path_paths.as_slice())
-}
-// use rocket_contrib::json::Json;
 
+#[post("/build", format = "application/json", data = "<project>")]
+fn build_project(project:Json<Project>) -> Json<TaskOutput> {
+    Json(TaskOutput{output: Project::build(&project.0), project: project.0})
+}
 
-#[get("/", format="application/json")]
-fn index() -> Vec<Project> {
-    // let a = tools::files::file_lines("build-paths");
-    // let s = a.join(",");
-    // s
+#[post("/delete", format = "application/json", data = "<project>")]
+fn delete_project(project:Json<Project>)-> Json<Project>{
+    println!("DELETE -> {:?}", &project.0);
+    Project::delete(&project.0, PROJECT_BUILDFILE_PATH);
+    Json(project.0)
+}
 
-    initialize_projects()
+#[post("/log", format = "application/json", data = "<project>")]
+fn log_project(project:Json<Project>) -> Json<Vec<String>>{
+    println!("get logs -> {:?}", &project.0);
+    Json(Project::logs(&project.0))
+}
+
+#[post("/clean", format = "application/json", data = "<project>")]
+fn clean_project(project:Json<Project>) -> Json<Project>{
+    println!("clean -> {:?}", &project.0);
+    Project::clean(&project.0);
+    Json(project.0)
+}
+
+#[post("/info", format = "application/json", data = "<project>")]
+fn info_project(project:Json<Project>) -> Json<Project>{
+    Json(project.0)
 }
 
 fn main() {
-    rocket::ignite().mount("/", routes![index]).launch();
+    rocket::ignite().mount("/", routes![
+    get_project_all,
+    build_project,
+    log_project,
+    clean_project,
+    delete_project,
+    info_project
+    ]).attach(CORS()).launch();
+}
+// Disabling corse control
+pub struct CORS();
+impl Fairing for CORS {
+    fn info(&self) -> Info {
+        Info {
+            name: "Add CORS headers to requests",
+            kind: Kind::Response
+        }
+    }
 
-    // let builddir = vec![Path::new("."),Path::new("src"),Path::new("build_dir")];
-    // Project::from_paths(builddir.as_slice());
-    // let PROJECT_LIST = initialize_projects();
+    fn on_response(&self, request: &Request, response: &mut Response) {
+        if request.method() == Method::Options || response.content_type() == Some(ContentType::JSON) {
+            response.set_header(Header::new("Access-Control-Allow-Origin", "http://localhost:3449"));
+            response.set_header(Header::new("Access-Control-Allow-Methods", "POST, GET, OPTIONS, DELETE, PUT"));
+            response.set_header(Header::new("Access-Control-Allow-Headers", "Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With, Access-Control-Allow-Origin"));
+            response.set_header(Header::new("Access-Control-Allow-Credentials", "false"));
+            response.set_status(Status::Ok)
+        }
 
-
-    // run_ps1();
-    // run_cmd();
-    // run_sh();
-
-
-    // println!("Paths:\n{:?}", &PROJECT_LIST);
+        if request.method() == Method::Options {
+            response.set_header(ContentType::Plain);
+            response.set_sized_body(std::io::Cursor::new(""));
+            response.set_status(Status::Ok)
+        }
+    }
 }
