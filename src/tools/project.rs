@@ -122,21 +122,61 @@ impl Project{
 
     pub fn build(project:&Project) -> Vec<String>{
         let mut script_output = vec![];
-        match std::process::Command::new(&project.shell).args(&[&project.script]).output() {
-            Ok(output) => {
-                let output_str = String::from_utf8(output.stdout).unwrap();
-                let line_splited = &output_str.lines();
-                line_splited.clone().for_each(|s| script_output.push(s.to_string()));
+        if cfg!(unix) {
+            match std::process::Command::new(&project.shell).args(&[&project.script]).output() {
+                Ok(output) => {
+                    println!("{:?}", output);
+                    let output_str = String::from_utf8(output.stdout).unwrap();
+                    let line_splited = &output_str.lines();
+                    line_splited.clone().for_each(|s| script_output.push(s.to_string()));
 
-                let output_str = String::from_utf8(output.stderr).unwrap();
-                if !output_str.is_empty() {
-                    &output_str.lines().clone().for_each(|s| script_output.push(s.to_string()));
+                    let output_str = String::from_utf8(output.stderr).unwrap();
+                    if !output_str.is_empty() {
+                        &output_str.lines().clone().for_each(|s| script_output.push(s.to_string()));
+                    }
+                    let s = PathBuf::from(&project.script);
+                    let s = s.parent().unwrap();
+                    tools::files::write_lines_to_file(&script_output, s.join(PROJECT_BUILDFILE_LOG));
                 }
-                let s = PathBuf::from(&project.script);
-                let s = s.parent().unwrap();
-                tools::files::write_lines_to_file(&script_output, s.join(PROJECT_BUILDFILE_LOG));
+                Err(e) => script_output.push("Error execution build task".to_string())
             }
-            Err(e) => script_output.push("Error execution build task".to_string())
+        }
+        if cfg!(windows) {
+            if project.shell.eq("ps1") {
+                if let Ok(script) = std::fs::read_to_string(&project.script) {
+                    match powershell_script::run(script.as_str(), true) {
+                        Ok(output) => {
+                            let lines = output.to_string();
+                            let lines = lines.lines();
+                            lines.clone().for_each(|s| script_output.push(s.to_string()));
+                        }
+                        Err(e) => {
+                            let lines = e.to_string();
+                            let lines = lines.lines();
+                            lines.clone().for_each(|s| script_output.push(s.to_string()));
+                        }
+                    }
+                }
+            }
+            if project.shell.eq("cmd"){
+                match std::process::Command::new(&project.shell).args(&["/C", &project.script]).output() {
+                    Ok(output) => {
+                        println!("{:?}", output);
+                        let output_str = String::from_utf8(output.stdout).unwrap();
+                        let line_splited = &output_str.lines();
+                        line_splited.clone().for_each(|s| script_output.push(s.to_string()));
+
+                        let output_str = String::from_utf8(output.stderr).unwrap();
+                        if !output_str.is_empty() {
+                            &output_str.lines().clone().for_each(|s| script_output.push(s.to_string()));
+                        }
+                        let s = PathBuf::from(&project.script);
+                        let s = s.parent().unwrap();
+                        tools::files::write_lines_to_file(&script_output, s.join(PROJECT_BUILDFILE_LOG));
+                    }
+                    Err(e) => script_output.push("Error execution build task".to_string())
+                }
+            }
         }
         return script_output;
     }

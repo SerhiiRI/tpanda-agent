@@ -16,3 +16,4 @@ Cargo.lock
 .idea
 
 *.log
+build_dir/build.log
