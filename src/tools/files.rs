@@ -28,7 +28,7 @@ pub(crate) fn file_lines(path_to_file:&Path) -> Vec<String>{
     }
     buffer
 }
-// use std::cmp::PartialEq;
+
 pub fn get_paths(path_to_file:&Path) -> Vec<String>{
     let is_not_0  =  |s:&String| s.len() > 0;
     let is_comment = |s:&String| ! ('#' == s.chars().nth(0).unwrap());

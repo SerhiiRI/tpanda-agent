@@ -1,0 +1,23 @@
+# This is a comment block
+
+# File must contain only a path(zero or more) to project, where 
+# The project will be scanned on file with name `build`.
+# depend on system which service installed, build script must be 
+# in specify extension. 
+# WARNING! if service installed on unix machine, service will show
+# only `build.sh`, but not show other build script totaly. 
+
+# For now supported extension for build script: 
+# .sh - unix 
+# .bat - windows cmd script
+# .ps1 - windows powershell script
+
+# Example paths for windows:
+C:\some\path\to\your\project
+some\related\path
+
+# Example paths for linux:
+/home/some/projects/jarman
+./may/be/relative/too
+may/be/relative/too
+
