@@ -5,9 +5,10 @@ Is our bad replacement for jenkins agent.
 \- But why, jenkins have all what you need?
 
 \- ...
+
 <img width="50%" src="static/listen.jpg">
 
-First of all, *because we can*. But also it more simple for our tech stack. 
+First of all, *because we can*. But also it more simplest management tool for our tech stack. 
 
 ## Install
 
