@@ -32,6 +32,7 @@ impl Project{
         let resolve_project = {
             if cfg!(windows) {
                 |project: &str, shell: &str, script_path: &str| -> Option<Project> {
+                    println!("{:?}, shell: {:?}", &script_path, &shell);
                     return match shell {
                         "ps1" => Some(Project {project:project.to_string(), script: script_path.to_string(), shell: "cmd".to_string() }),
                         "bat" => Some(Project {project:project.to_string(), script: script_path.to_string(), shell: "cmd".to_string() }),
@@ -128,7 +129,7 @@ impl Project{
                 line_splited.clone().for_each(|s| script_output.push(s.to_string()));
 
                 let output_str = String::from_utf8(output.stderr).unwrap();
-                if (!output_str.is_empty()) {
+                if !output_str.is_empty() {
                     &output_str.lines().clone().for_each(|s| script_output.push(s.to_string()));
                 }
                 let s = PathBuf::from(&project.script);
